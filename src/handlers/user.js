@@ -17,7 +17,13 @@ export const ensureUser = async (ctx) => {
         user = new User({
             userId: userId,
             name: ctx.from.first_name || 'User',
+            username: ctx.from.username, // <-- FIX: Added username to be saved
         });
+        await user.save();
+    }
+    // Update username if the user adds one later
+    if (!user.username && ctx.from.username) {
+        user.username = ctx.from.username;
         await user.save();
     }
     return user;

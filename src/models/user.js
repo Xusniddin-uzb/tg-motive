@@ -20,6 +20,7 @@ const addictionSchema = new mongoose.Schema({
 const userSchema = new mongoose.Schema({
     userId: { type: String, required: true, unique: true },
     name: { type: String, required: true },
+    username: { type: String, default: null }, // <-- FIX: Added username field
     habits: [habitSchema],
     addictions: [addictionSchema],
     mode: { type: String, default: 'normal' },

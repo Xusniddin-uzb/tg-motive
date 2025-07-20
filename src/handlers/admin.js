@@ -3,6 +3,12 @@ import { User, Group } from '../models/index.js';
 import { adminKeyboard, videoCategoryKeyboard } from '../keyboards/keyboards.js';
 import { userStates } from './user.js'; // Share state with user handlers
 
+// <-- NEW: Helper function to escape special characters for MarkdownV2
+function escapeMarkdown(text) {
+    if (!text) return '';
+    return text.replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&');
+}
+
 export async function handleAdminPanel(ctx) {
     await ctx.editMessageText('👑 Admin Panel', adminKeyboard);
 }
@@ -21,21 +27,23 @@ export async function handleViewUserStats(ctx) {
 }
 
 export async function handleViewUsers(ctx) {
-    const users = await User.find({}).sort({ _id: -1 }).limit(20); // Get last 20 users
+    const users = await User.find({}).sort({ _id: -1 }).limit(20);
     let userList = `👥 **Last 20 Registered Users:**\n\n`;
     if (users.length === 0) {
         userList += "_No users found._";
     } else {
+        // <-- FIX: Corrected the loop to display proper, escaped usernames
         users.forEach(user => {
-            userList += `• **Name:** ${user.name}\n`;
-            userList += `  **Username:** @${ctx.from.username || 'N/A'}\n`;
-            userList += `  **ID:** \`${user.userId}\`\n`;
-            userList += `  **Habits:** ${user.habits.length}\n`;
-            userList += `  **Addictions:** ${user.addictions.length}\n`;
-            userList += `  **Score:** ${user.focusScore}\n\n`;
+            const username = user.username ? `@${escapeMarkdown(user.username)}` : 'N/A';
+            userList += `• *Name:* ${escapeMarkdown(user.name)}\n`;
+            userList += `  *Username:* ${username}\n`;
+            userList += `  *ID:* \`${user.userId}\`\n`;
+            userList += `  *Habits:* ${user.habits.length}, *Addictions:* ${user.addictions.length}\n`;
+            userList += `  *Score:* ${user.focusScore}\n\n`;
         });
     }
-    await ctx.replyWithMarkdown(userList);
+    // Use parse_mode 'MarkdownV2' for better formatting control
+    await ctx.replyWithMarkdown(userList, { parse_mode: 'MarkdownV2' });
 }
 
 export async function handleBroadcastPrompt(ctx) {
