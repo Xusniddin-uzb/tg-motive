@@ -6,28 +6,31 @@ import { getAIResponse } from '../ai/openrouter.js';
 import { Markup } from 'telegraf';
 
 const sendDailyMotivation = async () => {
-    console.log('Running daily motivation job...');
-    await db.read(); // Ensure data is fresh
-    const users = db.data.users;
+    console.log('⏰ Running daily 6 AM motivation job...');
+    await db.read();
+    const { users, groups } = db.data;
+    const allChatIds = [...Object.keys(users), ...Object.keys(groups)];
+    
+    const uniqueChatIds = new Set(allChatIds);
 
-    for (const userId in users) {
+    for (const chatId of uniqueChatIds) {
         try {
-            const user = users[userId];
+            const userMode = users[chatId]?.mode || 'normal';
             const motivation = await getAIResponse(
-                [{ role: 'user', content: "Generate a powerful, aggressive motivational message for me to wake up to. No fluff." }],
-                user.mode
+                [{ role: 'user', content: "Generate a powerful, aggressive motivational message for me to wake up to. Short and punchy." }],
+                userMode
             );
-            await bot.telegram.sendMessage(userId, motivation);
+            await bot.telegram.sendMessage(chatId, motivation);
         } catch (error) {
-            console.error(`Failed to send message to user ${userId}:`, error.message);
+            console.error(`Failed to send motivation to chat ${chatId}:`, error.message);
         }
     }
 };
 
 const sendEveningCheckin = async () => {
-    console.log('Running evening check-in job...');
+    console.log('⏰ Running evening 9 PM check-in job...');
     await db.read();
-    const users = db.data.users;
+    const { users } = db.data;
 
     for (const userId in users) {
         try {
@@ -49,15 +52,10 @@ const sendEveningCheckin = async () => {
 };
 
 export const startSchedules = () => {
-    // Schedule to run at 6:00 AM every day
-    cron.schedule('0 6 * * *', sendDailyMotivation, {
-        timezone: "Asia/Tashkent"
-    });
+    const timezone = process.env.TIMEZONE || 'Asia/Tashkent';
 
-    // Schedule to run at 9:00 PM (21:00) every day
-    cron.schedule('0 21 * * *', sendEveningCheckin, {
-        timezone: "Asia/Tashkent"
-    });
+    cron.schedule('0 6 * * *', sendDailyMotivation, { timezone });
+    cron.schedule('0 21 * * *', sendEveningCheckin, { timezone });
 
-    console.log('Cron jobs for motivation and check-ins have been scheduled.');
+    console.log(`✅ Cron jobs scheduled in timezone: ${timezone}`);
 };

@@ -1,0 +1,28 @@
+# Dependencies
+/node_modules
+
+# Environment variables
+.env
+
+# Local Database File (Not suitable for production)
+src/storage/data.json
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

@@ -1,3 +1,31 @@
 {
-  "users": {}
+  "users": {
+    "341346374": {
+      "id": 341346374,
+      "name": "Xusniddin",
+      "habits": {
+        "tJtlpLGr": {
+          "id": "tJtlpLGr",
+          "name": "Code for 2 hours a day",
+          "type": "quantitative",
+          "unit": "Hours",
+          "streak": 0,
+          "progress": 0
+        }
+      },
+      "addictions": {},
+      "mode": "normal",
+      "focusScore": 12,
+      "lastInteraction": "2025-07-20"
+    }
+  },
+  "groups": {},
+  "videos": {
+    "tate": [
+      "BAACAgIAAxkBAANFaH1KI5zWRrVMJ9DtWIwWAj8j4UoAAp2EAAIMEOhLyMdmCRG0pbE2BA"
+    ],
+    "gym": [],
+    "money": [],
+    "self_improvement": []
+  }
 }

@@ -4,15 +4,16 @@ import { JSONFile } from 'lowdb/node';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// Since we are using ES Modules, __dirname is not available directly.
+// ES Modules require this setup to get __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Path to your JSON file
 const file = path.join(__dirname, 'data.json');
 
-// Configure lowdb to write to JSONFile
 const adapter = new JSONFile(file);
-const db = new Low(adapter, { users: {} }); // Default data
+const defaultData = { users: {}, groups: {} };
+const db = new Low(adapter, defaultData);
 
 // Read data from JSON file, this will set db.data content
 await db.read();
