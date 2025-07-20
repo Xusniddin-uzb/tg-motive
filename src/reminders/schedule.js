@@ -1,21 +1,22 @@
 // src/reminders/schedule.js
 import cron from 'node-cron';
 import { bot } from '../bot.js';
-import { db } from '../storage/database.js';
 import { getAIResponse } from '../ai/openrouter.js';
 import { Markup } from 'telegraf';
+import { User, Group } from '../models/index.js';
 
 const sendDailyMotivation = async () => {
     console.log('⏰ Running daily 6 AM motivation job...');
-    await db.read();
-    const { users, groups } = db.data;
-    const allChatIds = [...Object.keys(users), ...Object.keys(groups)];
+    const users = await User.find({}, 'userId mode');
+    const groups = await Group.find({}, 'groupId');
+    const allChatIds = [...users.map(u => u.userId), ...groups.map(g => g.groupId)];
     
     const uniqueChatIds = new Set(allChatIds);
 
     for (const chatId of uniqueChatIds) {
         try {
-            const userMode = users[chatId]?.mode || 'normal';
+            const user = users.find(u => u.userId === chatId);
+            const userMode = user ? user.mode : 'normal';
             const motivation = await getAIResponse(
                 [{ role: 'user', content: "Generate a powerful, aggressive motivational message for me to wake up to. Short and punchy." }],
                 userMode
@@ -29,24 +30,20 @@ const sendDailyMotivation = async () => {
 
 const sendEveningCheckin = async () => {
     console.log('⏰ Running evening 9 PM check-in job...');
-    await db.read();
-    const { users } = db.data;
+    const users = await User.find({ $or: [{ 'habits.0': { $exists: true } }, { 'addictions.0': { $exists: true } }] });
 
-    for (const userId in users) {
+    for (const user of users) {
         try {
-            const user = users[userId];
-            if (Object.keys(user.habits).length > 0 || Object.keys(user.addictions).length > 0) {
-                 await bot.telegram.sendMessage(
-                    userId,
-                    "Evening report. Did you conquer the day or did the day conquer you? Answer honestly.",
-                    Markup.inlineKeyboard([
-                        Markup.button.callback('✅ I Won', 'checkin_yes'),
-                        Markup.button.callback('❌ I Lost', 'checkin_no'),
-                    ])
-                );
-            }
+            await bot.telegram.sendMessage(
+                user.userId,
+                "Evening report. Did you conquer the day or did the day conquer you? Answer honestly.",
+                Markup.inlineKeyboard([
+                    Markup.button.callback('✅ I Won', 'checkin_yes_all'), // Simplified check-in
+                    Markup.button.callback('❌ I Lost', 'checkin_no_all'),
+                ])
+            );
         } catch (error) {
-            console.error(`Failed to send check-in to user ${userId}:`, error.message);
+            console.error(`Failed to send check-in to user ${user.userId}:`, error.message);
         }
     }
 };

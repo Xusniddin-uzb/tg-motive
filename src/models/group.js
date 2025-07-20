@@ -1,3 +1,4 @@
+// src/models/group.js
 import mongoose from 'mongoose';
 
 const groupSchema = new mongoose.Schema({

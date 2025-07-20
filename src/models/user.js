@@ -1,7 +1,8 @@
+// src/models/user.js
 import mongoose from 'mongoose';
 
 const habitSchema = new mongoose.Schema({
-    habitId: { type: String, required: true, unique: true },
+    habitId: { type: String, required: true, unique: true, sparse: true },
     name: { type: String, required: true },
     type: { type: String, enum: ['binary', 'quantitative'], required: true },
     unit: { type: String, default: '' },
@@ -10,7 +11,7 @@ const habitSchema = new mongoose.Schema({
 });
 
 const addictionSchema = new mongoose.Schema({
-    addictionId: { type: String, required: true, unique: true },
+    addictionId: { type: String, required: true, unique: true, sparse: true },
     name: { type: String, required: true },
     why: { type: String, required: true },
     streak: { type: Number, default: 0 },

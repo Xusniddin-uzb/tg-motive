@@ -1,3 +1,4 @@
+// src/models/video.js
 import mongoose from 'mongoose';
 
 const videoSchema = new mongoose.Schema({
