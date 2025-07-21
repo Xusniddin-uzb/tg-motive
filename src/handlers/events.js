@@ -3,8 +3,7 @@ import { User, Video, JournalEntry, Goal } from '../models/index.js';
 import {
     userStates, ensureUser, updateFocusScore, handleSwear, handleMotivate, handleAddHabit, handleAddAddiction,
     handleViewProgress, handleJournal, handleRelapse, handleLeaderboard, handleScore, handleSupport, handleGetVideo,
-    handleNewJournalEntry,handleViewThisWeek,
-    handleViewLastWeek, handleShowToolkit, handleSetNewGoal, handleViewToday, handleViewYesterday, handleViewGoals
+    handleNewJournalEntry, handleViewThisWeek, handleViewLastWeek, handleSetNewGoal, handleViewGoals, handleShowToolkit
 } from './user.js';
 import { handleAdminPanel, handleViewUserStats, handleViewUsers, handleUploadVideo } from './admin.js';
 import { userKeyboard, anotherVideoKeyboard, journalKeyboard } from '../keyboards/keyboards.js';
@@ -15,6 +14,7 @@ import { addWeeks, addMonths, addDays, parse } from 'date-fns';
 const ADMIN_USER_ID = process.env.ADMIN_USER_ID;
 
 export const registerEventHandlers = (bot) => {
+    // --- TEXT EVENT HANDLER ---
     bot.on('text', async (ctx) => {
         const userId = ctx.from.id;
         const state = userStates[userId];
@@ -28,15 +28,14 @@ export const registerEventHandlers = (bot) => {
             return ctx.reply('Operation cancelled.');
         }
 
+        // Handle states for journal and goals
         if (state.stage === 'awaiting_journal_entry') {
             await ctx.reply('Analyzing and saving your entry...');
             delete userStates[userId];
-
             const newEntry = new JournalEntry({ userId, content: text });
             await newEntry.save();
             updateFocusScore(user, 5);
             await user.save();
-
             const prompt = [{ role: 'user', content: `Analyze my journal entry with brutal honesty... Entry:\n\n"${text}"` }];
             const response = await getAIResponse(prompt, user.mode);
             await ctx.replyWithMarkdown(response, userKeyboard);
@@ -52,7 +51,6 @@ export const registerEventHandlers = (bot) => {
         if (state.stage === 'awaiting_goal_date') {
             delete userStates[userId];
             const { description } = state;
-            
             let targetDate;
             try {
                 const now = new Date();
@@ -68,21 +66,17 @@ export const registerEventHandlers = (bot) => {
                 } else {
                      targetDate = parse(text, 'yyyy-MM-dd', new Date());
                      if (isNaN(targetDate.getTime())) targetDate = new Date(text);
-                }
+                }   
                 if (isNaN(targetDate.getTime())) throw new Error('Invalid date format');
             } catch (e) {
                 return ctx.reply("That date doesn't look right. Please try setting your goal again using a format like YYYY-MM-DD or a term like '3 weeks'.", journalKeyboard);
             }
-            
             const newGoal = new Goal({ userId, description, targetDate });
             await newGoal.save();
-            
-            await ctx.reply(`✅ Goal saved! I will hold you accountable.\n\n*Goal:* ${description}\n*Target:* ${targetDate.toDateString()}`, {
-                parse_mode: 'Markdown',
-                ...userKeyboard
-            });
+            await ctx.reply(`✅ Goal saved!\n\n*Goal:* ${description}\n*Target:* ${targetDate.toDateString()}`, { parse_mode: 'Markdown', ...userKeyboard });
             return;
         }
+
         if (state.stage === 'awaiting_journal_entry') {
             await ctx.reply('Analyzing and saving your entry...');
             delete userStates[userId];
@@ -164,31 +158,25 @@ export const registerEventHandlers = (bot) => {
     });
 
     bot.on('video', async (ctx) => {
-        const userId = ctx.from.id;
-        const state = userStates[userId];
-
-        if (userId.toString() === ADMIN_USER_ID && state && state.stage === 'admin_awaiting_video_upload') {
-            const videoFileId = ctx.message.video.file_id;
-            const newVideo = new Video({
-                categoryId: state.category,
-                fileId: videoFileId,
-            });
-            await newVideo.save();
-
-            await ctx.reply(
-                `✅ Video saved to **${state.category}**.\n\nSend another video to add it to this category, or choose an option below.`,
-                anotherVideoKeyboard
-            );
-        }
+            const userId = ctx.from.id;
+            const state = userStates[userId];
+            if (userId.toString() === ADMIN_USER_ID && state && state.stage === 'admin_awaiting_video_upload') {
+                const videoFileId = ctx.message.video.file_id;
+                const newVideo = new Video({ categoryId: state.category, fileId: videoFileId });
+                await newVideo.save();
+                await ctx.reply(`✅ Video saved to **${state.category}**.\n\nSend another video to add it to this category, or choose an option below.`, anotherVideoKeyboard);
+            }
     });
 
-   bot.on('callback_query', async (ctx) => {
+
+    bot.on('callback_query', async (ctx) => {
         await ctx.answerCbQuery().catch(err => console.error(err));
 
         const data = ctx.callbackQuery.data;
         const userId = ctx.from.id;
         const user = await ensureUser(ctx);
 
+        // Static button actions are mapped here
         const buttonActions = {
             'action_swear': handleSwear,
             'action_motivate': handleMotivate,
@@ -199,16 +187,14 @@ export const registerEventHandlers = (bot) => {
             'action_leaderboard': handleLeaderboard,
             'action_score': handleScore,
             'action_support': handleSupport,
-            'action_show_toolkit': handleShowToolkit,
             'action_get_video': handleGetVideo,
+            'action_show_toolkit': handleShowToolkit,
             'admin_panel': handleAdminPanel,
             'admin_view_stats': handleViewUserStats,
             'admin_view_users': handleViewUsers,
             'admin_upload_video': handleUploadVideo,
-            // Journal and Goal actions
             'action_journal': handleJournal,
             'journal_new_entry': handleNewJournalEntry,
-            'goal_new': handleSetNewGoal,
             'goal_new': handleSetNewGoal,
             'journal_view_this_week': handleViewThisWeek,
             'journal_view_last_week': handleViewLastWeek,
@@ -218,11 +204,12 @@ export const registerEventHandlers = (bot) => {
         if (buttonActions[data]) {
             return buttonActions[data](ctx, user);
         }
+
         if (journalActions[data]) {
             return journalActions[data](ctx);
         }
 
-        if (data.startsWith('relapse_')) {
+          if (data.startsWith('relapse_')) {
             const addictionId = data.split('_')[1];
             const addiction = user.addictions.find(a => a.addictionId === addictionId);
             if (addiction) {
@@ -230,7 +217,7 @@ export const registerEventHandlers = (bot) => {
                 addiction.streak = 0;
                 updateFocusScore(user, -10);
                 await user.save();
-                const prompt = [{ role: 'user', content: `I relapsed on "${addiction.name}". My reason for quitting was "${addiction.why}". Give me a harsh message to get me back on my feet immediately. Acknowledge the failure but demand I restart now.` }];
+                const prompt = [{ role: 'user', content: `I relapsed on "${addiction.name}". My reason for quitting was "${addiction.why}". Give me a harsh message to get me back on my feet immediately.` }];
                 const response = await getAIResponse(prompt, user.mode);
                 return ctx.editMessageText(response);
             }
@@ -239,24 +226,16 @@ export const registerEventHandlers = (bot) => {
         if (data.startsWith('video_cat_')) {
             const category = data.split('_')[2];
             const state = userStates[userId];
-
             if (userId.toString() === ADMIN_USER_ID && state && state.stage === 'admin_awaiting_video_category') {
                 userStates[userId] = { stage: 'admin_awaiting_video_upload', category: category };
                 return ctx.editMessageText(`OK. Now, send me the video file to upload to the **${category}** category.`);
             }
-
             const videos = await Video.find({ categoryId: category });
             if (videos.length === 0) {
                 return ctx.reply(`Sorry, no videos found in the "${category}" category yet. Check back later.`);
             }
             const randomVideo = videos[Math.floor(Math.random() * videos.length)];
-            try {
-                await ctx.replyWithVideo(randomVideo.fileId);
-            } catch (error) {
-                console.error(`Failed to send video ${randomVideo.fileId}:`, error);
-                await ctx.reply('There was an error sending that video. It might have been deleted. Try again.');
-            }
-            return;
+            return ctx.replyWithVideo(randomVideo.fileId).catch(err => console.error(err));
         }
 
         if (data.startsWith('habit_type_')) {
@@ -272,32 +251,28 @@ export const registerEventHandlers = (bot) => {
                     return ctx.reply("What's next?", userKeyboard);
                 } else if (type === 'quantitative') {
                     userStates[userId] = { stage: 'awaiting_habit_unit', name: state.name };
-                    return ctx.editMessageText('What is the unit of measurement? (e.g., "pages", "km", "minutes", "reps")');
+                    return ctx.editMessageText('What is the unit of measurement? (e.g., "pages", "km", "minutes")');
                 }
             }
         }
 
-        if (data.startsWith('checkin_yes_')) {
-            const habitId = data.substring('checkin_yes_'.length);
+        if (data.startsWith('checkin_yes_') || data.startsWith('checkin_no_')) {
+            const isYes = data.startsWith('checkin_yes_');
+            const habitId = isYes ? data.substring('checkin_yes_'.length) : data.substring('checkin_no_'.length);
             const habit = user.habits.find(h => h.habitId === habitId);
             if (habit) {
-                habit.streak++;
-                habit.progress = 1;
-                updateFocusScore(user, 10);
+                if (isYes) {
+                    habit.streak++;
+                    habit.progress = 1;
+                    updateFocusScore(user, 10);
+                    await ctx.editMessageText(`"${habit.name}" - Done. Good. Consistency is key. ⚔️`);
+                } else {
+                    habit.streak = 0;
+                    habit.progress = 0;
+                    updateFocusScore(user, -5);
+                    await ctx.editMessageText(`"${habit.name}" - Missed. Weakness. Do better tomorrow.`);
+                }
                 await user.save();
-                await ctx.editMessageText(`"${habit.name}" - Done. Good. Consistency is key. ⚔️`);
-            }
-        }
-
-        if (data.startsWith('checkin_no_')) {
-            const habitId = data.substring('checkin_no_'.length);
-            const habit = user.habits.find(h => h.habitId === habitId);
-            if (habit) {
-                habit.streak = 0;
-                habit.progress = 0;
-                updateFocusScore(user, -5);
-                await user.save();
-                await ctx.editMessageText(`"${habit.name}" - Missed. Weakness. Do better tomorrow.`);
             }
         }
     });

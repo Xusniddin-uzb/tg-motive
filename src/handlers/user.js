@@ -69,7 +69,43 @@ export async function handleMotivate(ctx) {
     const motivation = await getAIResponse(prompt, user.mode);
     await ctx.replyWithMarkdown(motivation);
 }
+export async function handleHelp(ctx) {
+    const helpText = `
+*Welcome to the Discipline AI Bot* ⚔️
 
+This bot is your personal AI accountability partner. Its purpose is to keep you focused and on track. Here’s how to use its core features:
+
+*Core Commands:*
+- \`/start\` - Restarts the bot and shows the main menu.
+- \`/toolkit\` - Displays the main keyboard with all features.
+- \`/help\` - Shows this help message.
+
+*Main Features:*
+*💪 Motivate*
+- Get a random, hard-hitting piece of advice to keep you sharp.
+
+*🎬 Get Videos*
+- Watch curated motivational videos in different categories.
+
+*🧠 Habits & 🚫 Addictions*
+- Use the buttons to define habits you want to build and addictions you want to quit. The bot will track your streaks for both.
+
+*📉 Relapse*
+- If you fail, you *must* report it here. Honesty is mandatory. Your streak for that addiction will be reset.
+
+*📊 Progress & 🎯 My Score*
+- View a full report of your streaks and your daily "Focus Score," which is earned by interacting with the bot.
+
+*✍️ Journal & Goals*
+- This is your command center for self-reflection.
+- *New Entry:* Write down your thoughts, wins, and losses. The AI will analyze it for you.
+- *Set New Goal:* Define a clear goal and a target date (e.g., "next week", "2025-08-15"). The bot will remind you of your mission.
+- *View Entries:* Review your journal entries from this week or last week.
+
+Use these tools every day. No excuses.
+    `;
+    await ctx.replyWithMarkdown(helpText);
+}
 export async function handleAddHabit(ctx) {
     if (ctx.chat.type !== 'private') return ctx.reply('Set habits in a private chat with me.');
     userStates[ctx.from.id] = { stage: 'awaiting_habit_name' };
@@ -267,43 +303,7 @@ export async function handleCheckin(ctx) {
         }
     }
 }
-export async function handleHelp(ctx) {
-    const helpText = `
-*Welcome to the Discipline AI Bot* ⚔️
 
-This bot is your personal AI accountability partner. Its purpose is to keep you focused and on track. Here’s how to use its core features:
-
-*Core Commands:*
-- \`/start\` - Restarts the bot and shows the main menu.
-- \`/toolkit\` - Displays the main keyboard with all features.
-- \`/help\` - Shows this help message.
-
-*Main Features:*
-*💪 Motivate*
-- Get a random, hard-hitting piece of advice to keep you sharp.
-
-*🎬 Get Videos*
-- Watch curated motivational videos in different categories.
-
-*🧠 Habits & 🚫 Addictions*
-- Use the buttons to define habits you want to build and addictions you want to quit. The bot will track your streaks for both.
-
-*📉 Relapse*
-- If you fail, you *must* report it here. Honesty is mandatory. Your streak for that addiction will be reset.
-
-*📊 Progress & 🎯 My Score*
-- View a full report of your streaks and your daily "Focus Score," which is earned by interacting with the bot.
-
-*✍️ Journal & Goals*
-- This is your command center for self-reflection.
-- *New Entry:* Write down your thoughts, wins, and losses. The AI will analyze it for you.
-- *Set New Goal:* Define a clear goal and a target date (e.g., "next week", "2025-08-15"). The bot will remind you of your mission.
-- *View Entries:* Review your journal entries from this week or last week.
-
-Use these tools every day. No excuses.
-    `;
-    await ctx.replyWithMarkdown(helpText);
-}
 export async function handleWhy(ctx) {
     if (ctx.chat.type !== 'private') return;
     const user = await ensureUser(ctx);

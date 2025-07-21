@@ -2,10 +2,6 @@
 import 'dotenv/config';
 import { Telegraf } from 'telegraf';
 import { registerEventHandlers  } from './handlers/events.js';
-import {
- handleHelp
-} from './handlers/user.js';
-
 // Import all your command handlers
 import * as user from './handlers/user.js';
 import * as admin from './handlers/admin.js';
@@ -40,7 +36,7 @@ bot.command('checkin', user.handleCheckin);
 bot.command('why', user.handleWhy);
 bot.command('eliteon', user.handleEliteOn);
 bot.command('eliteoff', user.handleEliteOff);
-bot.command('help', handleHelp);
+bot.command('help', users.handleHelp);
 
 // Admin Commands (with middleware)
 bot.command('users', adminOnly, admin.handleViewUsers);
