@@ -1,9 +1,9 @@
-// src/handlers/user.js
 import { Markup } from 'telegraf';
 import { nanoid } from 'nanoid';
 import { getAIResponse } from '../ai/openrouter.js';
-import { User, Group, Video } from '../models/index.js';
-import { userKeyboard, videoCategoryKeyboard, adminOrUserKeyboard, swearKeyboard } from '../keyboards/keyboards.js';
+// <-- FIX: Import all the necessary models and keyboards
+import { User, Group, Video, JournalEntry, Goal } from '../models/index.js';
+import { userKeyboard, videoCategoryKeyboard, adminOrUserKeyboard, swearKeyboard, journalKeyboard } from '../keyboards/keyboards.js';
 
 export const userStates = {};
 const ADMIN_USER_ID = process.env.ADMIN_USER_ID;
@@ -110,6 +110,8 @@ export async function handleViewProgress(ctx) {
     await ctx.replyWithMarkdown(report, userKeyboard);
 }
 
+// --- JOURNAL & GOAL HANDLERS ---
+
 export async function handleJournal(ctx) {
     if (ctx.chat.type !== 'private') return ctx.reply('Use the journal in a private chat with me.');
     await ctx.editMessageText('📓 Journal & Goals Menu', journalKeyboard);
@@ -143,7 +145,7 @@ async function viewJournalEntryByDate(ctx, date) {
             ...journalKeyboard
         });
     } else {
-        await ctx.answerCbQuery(`No entry found for ${startOfDay.toDateString()}.`);
+        await ctx.answerCbQuery({ text: `No entry found for ${startOfDay.toDateString()}.` });
     }
 }
 
@@ -172,6 +174,7 @@ export async function handleViewGoals(ctx) {
 
     await ctx.editMessageText(goalText, { parse_mode: 'Markdown', ...journalKeyboard });
 }
+
 export async function handleRelapse(ctx) {
     if (ctx.chat.type !== 'private') return ctx.reply('Report a relapse in a private chat with me.');
     const user = await ensureUser(ctx);
