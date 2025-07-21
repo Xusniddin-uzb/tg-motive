@@ -36,8 +36,8 @@ export const swearKeyboard = Markup.inlineKeyboard([
 export const journalKeyboard = Markup.inlineKeyboard([
     [Markup.button.callback('✍️ New Entry', 'journal_new_entry')],
     [Markup.button.callback('🎯 Set New Goal', 'goal_new')],
-    [Markup.button.callback('📖 View Today\'s Entry', 'journal_view_today')],
-    [Markup.button.callback('🗓️ View Yesterday\'s Entry', 'journal_view_yesterday')],
+    [Markup.button.callback('📖 This Week\'s Entries', 'journal_view_this_week')],
+    [Markup.button.callback('🗓️ Last Week\'s Entries', 'journal_view_last_week')],
     [Markup.button.callback('🎯 View Active Goals', 'goal_view_active')],
-    [Markup.button.callback('⬅️ Back', 'action_show_toolkit')] 
+    [Markup.button.callback('⬅️ Back', 'action_show_toolkit')]
 ]);

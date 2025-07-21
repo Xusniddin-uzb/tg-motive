@@ -19,6 +19,8 @@ async function main() {
         { command: 'journal', description: 'Open the journal menu' },
         { command: 'score', description: 'Check your daily Focus Score' },
         { command: 'videos', description: 'Get motivational videos' },
+        { command: 'help', description: 'Show help and instructions' } // <-- FIX: Add the help command here
+
     ]);
     
     // <-- FIX: Pass the 'bot' object to the scheduling function

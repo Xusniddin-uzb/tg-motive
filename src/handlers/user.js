@@ -1,8 +1,9 @@
 import { Markup } from 'telegraf';
 import { nanoid } from 'nanoid';
 import { getAIResponse } from '../ai/openrouter.js';
-import { User, Group, Video, JournalEntry, Goal } from '../models/index.js';
+import { User, JournalEntry, Goal } from '../models/index.js';
 import { userKeyboard, videoCategoryKeyboard, adminOrUserKeyboard, swearKeyboard, journalKeyboard } from '../keyboards/keyboards.js';
+import { startOfWeek, endOfWeek, subWeeks } from 'date-fns';
 
 export const userStates = {};
 const ADMIN_USER_ID = process.env.ADMIN_USER_ID;
@@ -135,37 +136,44 @@ export async function handleSetNewGoal(ctx) {
     await ctx.editMessageText('🎯 What is your goal? Be specific and measurable.');
 }
 
-async function viewJournalEntryByDate(ctx, date) {
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
-
-    const entry = await JournalEntry.findOne({
+async function viewJournalEntriesByRange(ctx, startDate, endDate, periodName) {
+    const entries = await JournalEntry.find({
         userId: ctx.from.id,
-        date: { $gte: startOfDay, $lte: endOfDay }
-    }).sort({ date: -1 });
+        date: { $gte: startDate, $lte: endDate }
+    }).sort({ date: 'asc' });
 
-    if (entry) {
-        const message = `*Entry from ${startOfDay.toDateString()}:*\n\n${entry.content}`;
-        await ctx.editMessageText(message, {
-            parse_mode: 'Markdown',
-            ...journalKeyboard
-        });
-    } else {
-        await ctx.answerCbQuery({ text: `No entry found for ${startOfDay.toDateString()}.`, show_alert: true });
+    if (entries.length === 0) {
+        return await ctx.editMessageText(
+            `No journal entries found for ${periodName}.\n\nUse the menu to write a new one or view your goals.`,
+            journalKeyboard
+        );
     }
+
+    let message = `*Entries for ${periodName}:*\n\n`;
+    entries.forEach(entry => {
+        message += `*${entry.date.toDateString()}:*\n`;
+        message += `${entry.content.substring(0, 150)}...\n\n`; // Show a snippet
+    });
+
+    await ctx.editMessageText(message, {
+        parse_mode: 'Markdown',
+        ...journalKeyboard
+    });
 }
 
-export async function handleViewToday(ctx) {
-    await viewJournalEntryByDate(ctx, new Date());
+export async function handleViewThisWeek(ctx) {
+    const now = new Date();
+    const start = startOfWeek(now, { weekStartsOn: 1 }); // Week starts on Monday
+    const end = endOfWeek(now, { weekStartsOn: 1 });
+    await viewJournalEntriesByRange(ctx, start, end, 'This Week');
 }
 
-export async function handleViewYesterday(ctx) {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    await viewJournalEntryByDate(ctx, yesterday);
+export async function handleViewLastWeek(ctx) {
+    const now = new Date();
+    const lastWeek = subWeeks(now, 1);
+    const start = startOfWeek(lastWeek, { weekStartsOn: 1 });
+    const end = endOfWeek(lastWeek, { weekStartsOn: 1 });
+    await viewJournalEntriesByRange(ctx, start, end, 'Last Week');
 }
 
 export async function handleViewGoals(ctx) {
@@ -183,7 +191,9 @@ export async function handleViewGoals(ctx) {
 
     await ctx.editMessageText(goalText, { parse_mode: 'Markdown', ...journalKeyboard });
 }
+
 // --- OTHER HANDLERS ---
+
 export async function handleLeaderboard(ctx) {
     const allUsers = await User.find({ $or: [{ 'habits.0': { $exists: true } }, { 'addictions.0': { $exists: true } }] });
 
@@ -230,9 +240,11 @@ export async function handleGetVideo(ctx) {
 export async function handleToolkit(ctx) {
     await ctx.reply('Here is your toolkit:', userKeyboard);
 }
+
 export async function handleShowToolkit(ctx) {
     await ctx.editMessageText('Your toolkit is below.', userKeyboard);
 }
+
 export async function handleCheckin(ctx) {
     if (ctx.chat.type !== 'private') return;
     const user = await ensureUser(ctx);
@@ -255,7 +267,43 @@ export async function handleCheckin(ctx) {
         }
     }
 }
+export async function handleHelp(ctx) {
+    const helpText = `
+*Welcome to the Discipline AI Bot* ⚔️
 
+This bot is your personal AI accountability partner. Its purpose is to keep you focused and on track. Here’s how to use its core features:
+
+*Core Commands:*
+- \`/start\` - Restarts the bot and shows the main menu.
+- \`/toolkit\` - Displays the main keyboard with all features.
+- \`/help\` - Shows this help message.
+
+*Main Features:*
+*💪 Motivate*
+- Get a random, hard-hitting piece of advice to keep you sharp.
+
+*🎬 Get Videos*
+- Watch curated motivational videos in different categories.
+
+*🧠 Habits & 🚫 Addictions*
+- Use the buttons to define habits you want to build and addictions you want to quit. The bot will track your streaks for both.
+
+*📉 Relapse*
+- If you fail, you *must* report it here. Honesty is mandatory. Your streak for that addiction will be reset.
+
+*📊 Progress & 🎯 My Score*
+- View a full report of your streaks and your daily "Focus Score," which is earned by interacting with the bot.
+
+*✍️ Journal & Goals*
+- This is your command center for self-reflection.
+- *New Entry:* Write down your thoughts, wins, and losses. The AI will analyze it for you.
+- *Set New Goal:* Define a clear goal and a target date (e.g., "next week", "2025-08-15"). The bot will remind you of your mission.
+- *View Entries:* Review your journal entries from this week or last week.
+
+Use these tools every day. No excuses.
+    `;
+    await ctx.replyWithMarkdown(helpText);
+}
 export async function handleWhy(ctx) {
     if (ctx.chat.type !== 'private') return;
     const user = await ensureUser(ctx);
