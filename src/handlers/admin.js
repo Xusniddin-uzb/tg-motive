@@ -3,10 +3,11 @@ import { User, Group } from '../models/index.js';
 import { adminKeyboard, videoCategoryKeyboard } from '../keyboards/keyboards.js';
 import { userStates } from './user.js'; // Share state with user handlers
 
-// <-- NEW: Helper function to escape special characters for MarkdownV2
+// <-- FIX: The escape function now includes the hyphen/minus character '-'
 function escapeMarkdown(text) {
-    if (!text) return '';
-    return text.replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&');
+    if (text === null || text === undefined) return '';
+    // This now escapes all special characters required by MarkdownV2
+    return text.toString().replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&');
 }
 
 export async function handleAdminPanel(ctx) {
@@ -19,11 +20,11 @@ export async function handleViewUserStats(ctx) {
     const usersWithAddictions = await User.countDocuments({ 'addictions.0': { $exists: true } });
 
     let stats = `**Bot Statistics**\n\n`;
-    stats += `- **Total Users:** ${totalUsers}\n`;
-    stats += `- **Users w/ Habits:** ${usersWithHabits}\n`;
-    stats += `- **Users w/ Addictions:** ${usersWithAddictions}`;
+    stats += `• **Total Users:** ${totalUsers}\n`;
+    stats += `• **Users w/ Habits:** ${usersWithHabits}\n`;
+    stats += `• **Users w/ Addictions:** ${usersWithAddictions}`;
     
-    await ctx.replyWithMarkdown(stats);
+    await ctx.replyWithMarkdown(stats, { parse_mode: 'MarkdownV2' });
 }
 
 export async function handleViewUsers(ctx) {
@@ -32,17 +33,17 @@ export async function handleViewUsers(ctx) {
     if (users.length === 0) {
         userList += "_No users found._";
     } else {
-        // <-- FIX: Corrected the loop to display proper, escaped usernames
         users.forEach(user => {
             const username = user.username ? `@${escapeMarkdown(user.username)}` : 'N/A';
             userList += `• *Name:* ${escapeMarkdown(user.name)}\n`;
             userList += `  *Username:* ${username}\n`;
             userList += `  *ID:* \`${user.userId}\`\n`;
             userList += `  *Habits:* ${user.habits.length}, *Addictions:* ${user.addictions.length}\n`;
-            userList += `  *Score:* ${user.focusScore}\n\n`;
+            // <-- FIX: The user's score is now also passed through the escape function
+            userList += `  *Score:* ${escapeMarkdown(user.focusScore)}\n\n`;
         });
     }
-    // Use parse_mode 'MarkdownV2' for better formatting control
+    
     await ctx.replyWithMarkdown(userList, { parse_mode: 'MarkdownV2' });
 }
 
