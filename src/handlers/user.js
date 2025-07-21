@@ -1,7 +1,6 @@
 import { Markup } from 'telegraf';
 import { nanoid } from 'nanoid';
 import { getAIResponse } from '../ai/openrouter.js';
-// <-- FIX: Import all the necessary models and keyboards
 import { User, Group, Video, JournalEntry, Goal } from '../models/index.js';
 import { userKeyboard, videoCategoryKeyboard, adminOrUserKeyboard, swearKeyboard, journalKeyboard } from '../keyboards/keyboards.js';
 
@@ -37,7 +36,7 @@ export function updateFocusScore(user, points) {
     user.lastInteraction = today;
 }
 
-// --- ACTION HANDLERS ---
+// --- CORE ACTION HANDLERS ---
 
 export async function handleStart(ctx) {
     await ensureUser(ctx);
@@ -72,14 +71,12 @@ export async function handleMotivate(ctx) {
 
 export async function handleAddHabit(ctx) {
     if (ctx.chat.type !== 'private') return ctx.reply('Set habits in a private chat with me.');
-    await ensureUser(ctx);
     userStates[ctx.from.id] = { stage: 'awaiting_habit_name' };
     await ctx.reply('🧠 What is the new habit? Be specific (e.g., "Read a book," "Go for a run").');
 }
 
 export async function handleAddAddiction(ctx) {
     if (ctx.chat.type !== 'private') return ctx.reply('Set addictions in a private chat with me.');
-    await ensureUser(ctx);
     userStates[ctx.from.id] = { stage: 'awaiting_addiction' };
     await ctx.reply('🚫 What addiction are you ready to destroy? Name it.');
 }
@@ -110,6 +107,17 @@ export async function handleViewProgress(ctx) {
     await ctx.replyWithMarkdown(report, userKeyboard);
 }
 
+export async function handleRelapse(ctx) {
+    if (ctx.chat.type !== 'private') return ctx.reply('Report a relapse in a private chat with me.');
+    const user = await ensureUser(ctx);
+    if (user.addictions.length === 0) return ctx.reply("You have no addictions logged to relapse on. Focus.");
+    
+    const buttons = user.addictions.map(addiction => Markup.button.callback(addiction.name, `relapse_${addiction.addictionId}`));
+    const keyboard = Markup.inlineKeyboard(buttons, { columns: 1 });
+    await ctx.reply('Which demon got you? Report it.', keyboard);
+}
+
+
 // --- JOURNAL & GOAL HANDLERS ---
 
 export async function handleJournal(ctx) {
@@ -119,7 +127,7 @@ export async function handleJournal(ctx) {
 
 export async function handleNewJournalEntry(ctx) {
     userStates[ctx.from.id] = { stage: 'awaiting_journal_entry' };
-    await ctx.editMessageText('✍️ Write your journal entry. Be honest. What were your wins and losses today?');
+    await ctx.editMessageText('✍️ Write your journal entry. What were your wins and losses today?');
 }
 
 export async function handleSetNewGoal(ctx) {
@@ -137,15 +145,16 @@ async function viewJournalEntryByDate(ctx, date) {
     const entry = await JournalEntry.findOne({
         userId: ctx.from.id,
         date: { $gte: startOfDay, $lte: endOfDay }
-    });
+    }).sort({ date: -1 });
 
     if (entry) {
-        await ctx.editMessageText(`*Entry from ${startOfDay.toDateString()}:*\n\n${entry.content}`, {
+        const message = `*Entry from ${startOfDay.toDateString()}:*\n\n${entry.content}`;
+        await ctx.editMessageText(message, {
             parse_mode: 'Markdown',
             ...journalKeyboard
         });
     } else {
-        await ctx.answerCbQuery({ text: `No entry found for ${startOfDay.toDateString()}.` });
+        await ctx.answerCbQuery({ text: `No entry found for ${startOfDay.toDateString()}.`, show_alert: true });
     }
 }
 
@@ -174,17 +183,7 @@ export async function handleViewGoals(ctx) {
 
     await ctx.editMessageText(goalText, { parse_mode: 'Markdown', ...journalKeyboard });
 }
-
-export async function handleRelapse(ctx) {
-    if (ctx.chat.type !== 'private') return ctx.reply('Report a relapse in a private chat with me.');
-    const user = await ensureUser(ctx);
-    if (user.addictions.length === 0) return ctx.reply("You have no addictions logged to relapse on. Focus.");
-    
-    const buttons = user.addictions.map(addiction => Markup.button.callback(addiction.name, `relapse_${addiction.addictionId}`));
-    const keyboard = Markup.inlineKeyboard(buttons, { columns: 1 });
-    await ctx.reply('Which demon got you? Report it.', keyboard);
-}
-
+// --- OTHER HANDLERS ---
 export async function handleLeaderboard(ctx) {
     const allUsers = await User.find({ $or: [{ 'habits.0': { $exists: true } }, { 'addictions.0': { $exists: true } }] });
 

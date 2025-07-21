@@ -1,15 +1,19 @@
 import { nanoid } from 'nanoid';
-import { User, Video, JournalEntry, Goal  } from '../models/index.js';
-import { userStates, ensureUser, updateFocusScore, handleSwear, handleMotivate, handleAddHabit, handleAddAddiction, handleViewProgress, handleJournal, handleRelapse, handleLeaderboard, handleScore, handleSupport, handleGetVideo, handleNewJournalEntry, handleSetNewGoal, handleViewToday, handleViewYesterday, handleViewGoals  } from './user.js';
+import { User, Video, JournalEntry, Goal } from '../models/index.js';
+import {
+    userStates, ensureUser, updateFocusScore, handleSwear, handleMotivate, handleAddHabit, handleAddAddiction,
+    handleViewProgress, handleJournal, handleRelapse, handleLeaderboard, handleScore, handleSupport, handleGetVideo,
+    handleNewJournalEntry, handleSetNewGoal, handleViewToday, handleViewYesterday, handleViewGoals
+} from './user.js';
 import { handleAdminPanel, handleViewUserStats, handleViewUsers, handleUploadVideo } from './admin.js';
 import { userKeyboard, anotherVideoKeyboard, journalKeyboard } from '../keyboards/keyboards.js';
 import { getAIResponse } from '../ai/openrouter.js';
 import { Markup } from 'telegraf';
+import { addWeeks, addMonths, addDays, parse } from 'date-fns';
 
 const ADMIN_USER_ID = process.env.ADMIN_USER_ID;
 
 export const registerEventHandlers = (bot) => {
-
     bot.on('text', async (ctx) => {
         const userId = ctx.from.id;
         const state = userStates[userId];
@@ -23,38 +27,50 @@ export const registerEventHandlers = (bot) => {
             return ctx.reply('Operation cancelled.');
         }
 
-        if (state.stage !== 'awaiting_addiction' && state.stage !== 'awaiting_habit_name') {
-            await ctx.telegram.sendChatAction(ctx.chat.id, 'typing');
-        }
-
-        if (state.stage === 'admin_awaiting_broadcast') {
+        if (state.stage === 'awaiting_journal_entry') {
+            await ctx.reply('Analyzing and saving your entry...');
             delete userStates[userId];
-            const allUsers = await User.find({}, 'userId');
-            await ctx.reply(`Starting broadcast to ${allUsers.length} users...`);
-            let successCount = 0;
-            for (const u of allUsers) {
-                try {
-                    await bot.telegram.sendMessage(u.userId, text);
-                    successCount++;
-                } catch (e) {
-                    console.error(`Failed to broadcast to user ${u.userId}:`, e.message);
-                }
-            }
-            return ctx.reply(`Broadcast finished. Sent to ${successCount}/${allUsers.length} users.`);
-        }
-        if (state.stage === 'awaiting_goal_description') {
-            userStates[userId] = { stage: 'awaiting_goal_date', description: text };
-            await ctx.reply(`Goal set: "${text}".\n\nWhen do you want to achieve this by? (e.g., "tomorrow", "next week", "2024-12-31")`);
+
+            const newEntry = new JournalEntry({ userId, content: text });
+            await newEntry.save();
+            updateFocusScore(user, 5);
+            await user.save();
+
+            const prompt = [{ role: 'user', content: `Analyze my journal entry with brutal honesty... Entry:\n\n"${text}"` }];
+            const response = await getAIResponse(prompt, user.mode);
+            await ctx.replyWithMarkdown(response, userKeyboard);
             return;
         }
+
+        if (state.stage === 'awaiting_goal_description') {
+            userStates[userId] = { stage: 'awaiting_goal_date', description: text };
+            await ctx.reply(`Goal set: "${text}".\n\nWhen do you want to achieve this by? (e.g., "tomorrow", "3 weeks", "2025-12-31")`);
+            return;
+        }
+
         if (state.stage === 'awaiting_goal_date') {
             delete userStates[userId];
             const { description } = state;
-            // NOTE: A robust date parser (like 'date-fns' or 'moment') would be better here
-            // For simplicity, we'll use a basic Date constructor.
-            const targetDate = new Date(text);
-            if (isNaN(targetDate.getTime())) {
-                return ctx.reply("That date doesn't look right. Please try setting your goal again with a clearer date.", journalKeyboard);
+            
+            let targetDate;
+            try {
+                const now = new Date();
+                const textLower = text.toLowerCase();
+                if (textLower.includes('week')) {
+                    const weeks = parseInt(textLower.match(/\d+/)?.[0] || 1);
+                    targetDate = addWeeks(now, weeks);
+                } else if (textLower.includes('month')) {
+                    const months = parseInt(textLower.match(/\d+/)?.[0] || 1);
+                    targetDate = addMonths(now, months);
+                } else if (textLower.includes('tomorrow')) {
+                    targetDate = addDays(now, 1);
+                } else {
+                     targetDate = parse(text, 'yyyy-MM-dd', new Date());
+                     if (isNaN(targetDate.getTime())) targetDate = new Date(text);
+                }
+                if (isNaN(targetDate.getTime())) throw new Error('Invalid date format');
+            } catch (e) {
+                return ctx.reply("That date doesn't look right. Please try setting your goal again using a format like YYYY-MM-DD or a term like '3 weeks'.", journalKeyboard);
             }
             
             const newGoal = new Goal({ userId, description, targetDate });
@@ -165,7 +181,7 @@ export const registerEventHandlers = (bot) => {
         }
     });
 
-    bot.on('callback_query', async (ctx) => {
+   bot.on('callback_query', async (ctx) => {
         await ctx.answerCbQuery().catch(err => console.error(err));
 
         const data = ctx.callbackQuery.data;
@@ -178,7 +194,6 @@ export const registerEventHandlers = (bot) => {
             'action_add_habit': handleAddHabit,
             'action_add_addiction': handleAddAddiction,
             'action_view_progress': handleViewProgress,
-            'action_journal': handleJournal,
             'action_relapse': handleRelapse,
             'action_leaderboard': handleLeaderboard,
             'action_score': handleScore,
@@ -188,19 +203,20 @@ export const registerEventHandlers = (bot) => {
             'admin_view_stats': handleViewUserStats,
             'admin_view_users': handleViewUsers,
             'admin_upload_video': handleUploadVideo,
-        };
-        const journalActions = {
+            // Journal and Goal actions
+            'action_journal': handleJournal,
             'journal_new_entry': handleNewJournalEntry,
             'goal_new': handleSetNewGoal,
             'journal_view_today': handleViewToday,
             'journal_view_yesterday': handleViewYesterday,
             'goal_view_active': handleViewGoals
         };
-        if (journalActions[data]) {
-            return journalActions[data](ctx);
-}
+
         if (buttonActions[data]) {
             return buttonActions[data](ctx, user);
+        }
+        if (journalActions[data]) {
+            return journalActions[data](ctx);
         }
 
         if (data.startsWith('relapse_')) {

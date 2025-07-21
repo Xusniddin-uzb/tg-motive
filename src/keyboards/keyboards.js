@@ -39,5 +39,5 @@ export const journalKeyboard = Markup.inlineKeyboard([
     [Markup.button.callback('📖 View Today\'s Entry', 'journal_view_today')],
     [Markup.button.callback('🗓️ View Yesterday\'s Entry', 'journal_view_yesterday')],
     [Markup.button.callback('🎯 View Active Goals', 'goal_view_active')],
-    [Markup.button.callback('⬅️ Back', 'action_swear')] // "action_swear" brings back the main menu
+    [Markup.button.callback('⬅️ Back', 'action_swear')]
 ]);
