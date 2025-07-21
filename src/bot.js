@@ -36,7 +36,7 @@ bot.command('checkin', user.handleCheckin);
 bot.command('why', user.handleWhy);
 bot.command('eliteon', user.handleEliteOn);
 bot.command('eliteoff', user.handleEliteOff);
-bot.command('help', users.handleHelp);
+bot.command('help', user.handleHelp);
 
 // Admin Commands (with middleware)
 bot.command('users', adminOnly, admin.handleViewUsers);
