@@ -230,7 +230,9 @@ export async function handleGetVideo(ctx) {
 export async function handleToolkit(ctx) {
     await ctx.reply('Here is your toolkit:', userKeyboard);
 }
-
+export async function handleShowToolkit(ctx) {
+    await ctx.editMessageText('Your toolkit is below.', userKeyboard);
+}
 export async function handleCheckin(ctx) {
     if (ctx.chat.type !== 'private') return;
     const user = await ensureUser(ctx);

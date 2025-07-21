@@ -3,7 +3,7 @@ import { User, Video, JournalEntry, Goal } from '../models/index.js';
 import {
     userStates, ensureUser, updateFocusScore, handleSwear, handleMotivate, handleAddHabit, handleAddAddiction,
     handleViewProgress, handleJournal, handleRelapse, handleLeaderboard, handleScore, handleSupport, handleGetVideo,
-    handleNewJournalEntry, handleSetNewGoal, handleViewToday, handleViewYesterday, handleViewGoals
+    handleNewJournalEntry, handleShowToolkit, handleSetNewGoal, handleViewToday, handleViewYesterday, handleViewGoals
 } from './user.js';
 import { handleAdminPanel, handleViewUserStats, handleViewUsers, handleUploadVideo } from './admin.js';
 import { userKeyboard, anotherVideoKeyboard, journalKeyboard } from '../keyboards/keyboards.js';
@@ -198,6 +198,7 @@ export const registerEventHandlers = (bot) => {
             'action_leaderboard': handleLeaderboard,
             'action_score': handleScore,
             'action_support': handleSupport,
+            'action_show_toolkit': handleShowToolkit,
             'action_get_video': handleGetVideo,
             'admin_panel': handleAdminPanel,
             'admin_view_stats': handleViewUserStats,
