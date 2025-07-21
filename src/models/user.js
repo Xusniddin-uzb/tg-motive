@@ -25,7 +25,7 @@ const userSchema = new mongoose.Schema({
     addictions: [addictionSchema],
     mode: { type: String, default: 'normal' },
     focusScore: { type: Number, default: 0 },
-    lastInteraction: { type: String, default: null },
+    lastInteraction: { type: Date, default: null },
 });
 
 export const User = mongoose.model('User', userSchema);
