@@ -1,10 +1,10 @@
-// src/handlers/events.js
 import { nanoid } from 'nanoid';
 import { User, Video } from '../models/index.js';
 import { userStates, ensureUser, updateFocusScore, handleSwear, handleMotivate, handleAddHabit, handleAddAddiction, handleViewProgress, handleJournal, handleRelapse, handleLeaderboard, handleScore, handleSupport, handleGetVideo } from './user.js';
 import { handleAdminPanel, handleViewUserStats, handleViewUsers, handleUploadVideo } from './admin.js';
-import { userKeyboard } from '../keyboards/keyboards.js';
+import { userKeyboard, anotherVideoKeyboard } from '../keyboards/keyboards.js';
 import { getAIResponse } from '../ai/openrouter.js';
+import { Markup } from 'telegraf';
 
 const ADMIN_USER_ID = process.env.ADMIN_USER_ID;
 
@@ -44,7 +44,6 @@ export const registerEventHandlers = (bot) => {
         }
 
         if (state.stage === 'awaiting_journal') {
-            // <-- FIX: Inform the user first, then do the slow AI call
             await ctx.reply('Analyzing your journal entry, please wait...');
             
             delete userStates[userId];
@@ -110,7 +109,7 @@ export const registerEventHandlers = (bot) => {
         }
     });
 
-     bot.on('video', async (ctx) => {
+    bot.on('video', async (ctx) => {
         const userId = ctx.from.id;
         const state = userStates[userId];
 
@@ -122,21 +121,19 @@ export const registerEventHandlers = (bot) => {
             });
             await newVideo.save();
 
-            // <-- FIX: Keep the user in the upload loop instead of resetting
             await ctx.reply(
                 `✅ Video saved to **${state.category}**.\n\nSend another video to add it to this category, or choose an option below.`,
-                { reply_markup: anotherVideoKeyboard.reply_markup, parse_mode: 'Markdown' }
+                anotherVideoKeyboard
             );
         }
     });
 
-      bot.on('callback_query', async (ctx) => {
-        // <-- FIX: Acknowledge the button press immediately
+    bot.on('callback_query', async (ctx) => {
         await ctx.answerCbQuery().catch(err => console.error(err));
 
         const data = ctx.callbackQuery.data;
         const userId = ctx.from.id;
-        const user = await ensureUser(ctx); // Ensure user exists for most operations
+        const user = await ensureUser(ctx);
 
         const buttonActions = {
             'action_swear': handleSwear,
@@ -157,22 +154,17 @@ export const registerEventHandlers = (bot) => {
         };
 
         if (buttonActions[data]) {
-            return buttonActions[data](ctx, user); // Pass user to handlers
+            return buttonActions[data](ctx, user);
         }
 
-        // --- RELAPSE FIX ---
         if (data.startsWith('relapse_')) {
             const addictionId = data.split('_')[1];
             const addiction = user.addictions.find(a => a.addictionId === addictionId);
-
             if (addiction) {
-                // <-- FIX: Inform the user first, then do the slow AI call
                 await ctx.editMessageText(`You failed on "${addiction.name}". Analyzing...`);
-                
                 addiction.streak = 0;
                 updateFocusScore(user, -10);
                 await user.save();
-
                 const prompt = [{ role: 'user', content: `I relapsed on "${addiction.name}". My reason for quitting was "${addiction.why}". Give me a harsh message to get me back on my feet immediately. Acknowledge the failure but demand I restart now.` }];
                 const response = await getAIResponse(prompt, user.mode);
                 return ctx.editMessageText(response);
@@ -185,16 +177,13 @@ export const registerEventHandlers = (bot) => {
 
             if (userId.toString() === ADMIN_USER_ID && state && state.stage === 'admin_awaiting_video_category') {
                 userStates[userId] = { stage: 'admin_awaiting_video_upload', category: category };
-                await ctx.editMessageText(`OK. Now, send me the video file to upload to the **${category}** category.`);
-                return;
+                return ctx.editMessageText(`OK. Now, send me the video file to upload to the **${category}** category.`);
             }
 
             const videos = await Video.find({ categoryId: category });
-            
             if (videos.length === 0) {
                 return ctx.reply(`Sorry, no videos found in the "${category}" category yet. Check back later.`);
             }
-
             const randomVideo = videos[Math.floor(Math.random() * videos.length)];
             try {
                 await ctx.replyWithVideo(randomVideo.fileId);
@@ -209,7 +198,6 @@ export const registerEventHandlers = (bot) => {
             const type = data.split('_')[2];
             const state = userStates[userId];
             if (state && state.stage === 'awaiting_habit_type') {
-                const user = await ensureUser(ctx);
                 if (type === 'binary') {
                     user.habits.push({ habitId: nanoid(8), name: state.name, type: 'binary' });
                     updateFocusScore(user, 2);
@@ -223,28 +211,9 @@ export const registerEventHandlers = (bot) => {
                 }
             }
         }
-        
-        if (data.startsWith('relapse_') || data.startsWith('checkin_')) {
-            await ctx.telegram.sendChatAction(ctx.chat.id, 'typing');
-        }
-        
-        if (data.startsWith('relapse_')) {
-            const addictionId = data.split('_')[1];
-            const user = await ensureUser(ctx);
-            const addiction = user.addictions.find(a => a.addictionId === addictionId);
-            if (addiction) {
-                addiction.streak = 0;
-                updateFocusScore(user, -10);
-                await user.save();
-                const prompt = [{ role: 'user', content: `I relapsed on "${addiction.name}". My reason for quitting was "${addiction.why}". Give me a harsh message to get me back on my feet immediately. Acknowledge the failure but demand I restart now.` }];
-                const response = await getAIResponse(prompt, user.mode);
-                return ctx.editMessageText(response);
-            }
-        }
 
         if (data.startsWith('checkin_yes_')) {
             const habitId = data.substring('checkin_yes_'.length);
-            const user = await ensureUser(ctx);
             const habit = user.habits.find(h => h.habitId === habitId);
             if (habit) {
                 habit.streak++;
@@ -257,7 +226,6 @@ export const registerEventHandlers = (bot) => {
 
         if (data.startsWith('checkin_no_')) {
             const habitId = data.substring('checkin_no_'.length);
-            const user = await ensureUser(ctx);
             const habit = user.habits.find(h => h.habitId === habitId);
             if (habit) {
                 habit.streak = 0;

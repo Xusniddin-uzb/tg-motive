@@ -1,4 +1,3 @@
-// src/keyboards/keyboards.js
 import { Markup } from 'telegraf';
 
 export const userKeyboard = Markup.inlineKeyboard([
@@ -18,6 +17,12 @@ export const adminKeyboard = Markup.inlineKeyboard([
 export const videoCategoryKeyboard = Markup.inlineKeyboard([
     [Markup.button.callback('Tate Motivation', 'video_cat_tate'), Markup.button.callback('Gym Motivation', 'video_cat_gym')],
     [Markup.button.callback('Money Mindset', 'video_cat_money'), Markup.button.callback('Self Improvement', 'video_cat_self_improvement')]
+]);
+
+// This keyboard is used for the improved admin upload flow
+export const anotherVideoKeyboard = Markup.inlineKeyboard([
+    [Markup.button.callback('⬅️ Change Category', 'admin_upload_video')],
+    [Markup.button.callback('✅ Done', 'admin_panel')]
 ]);
 
 export const adminOrUserKeyboard = Markup.inlineKeyboard([
