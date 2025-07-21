@@ -33,3 +33,11 @@ export const adminOrUserKeyboard = Markup.inlineKeyboard([
 export const swearKeyboard = Markup.inlineKeyboard([
     Markup.button.callback("I Swear The Oath ⚔️", "action_swear")
 ]);
+export const journalKeyboard = Markup.inlineKeyboard([
+    [Markup.button.callback('✍️ New Entry', 'journal_new_entry')],
+    [Markup.button.callback('🎯 Set New Goal', 'goal_new')],
+    [Markup.button.callback('📖 View Today\'s Entry', 'journal_view_today')],
+    [Markup.button.callback('🗓️ View Yesterday\'s Entry', 'journal_view_yesterday')],
+    [Markup.button.callback('🎯 View Active Goals', 'goal_view_active')],
+    [Markup.button.callback('⬅️ Back', 'action_swear')] // "action_swear" brings back the main menu
+]);

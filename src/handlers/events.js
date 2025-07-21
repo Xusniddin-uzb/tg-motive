@@ -1,8 +1,8 @@
 import { nanoid } from 'nanoid';
-import { User, Video } from '../models/index.js';
-import { userStates, ensureUser, updateFocusScore, handleSwear, handleMotivate, handleAddHabit, handleAddAddiction, handleViewProgress, handleJournal, handleRelapse, handleLeaderboard, handleScore, handleSupport, handleGetVideo } from './user.js';
+import { User, Video, JournalEntry, Goal  } from '../models/index.js';
+import { userStates, ensureUser, updateFocusScore, handleSwear, handleMotivate, handleAddHabit, handleAddAddiction, handleViewProgress, handleJournal, handleRelapse, handleLeaderboard, handleScore, handleSupport, handleGetVideo, handleNewJournalEntry, handleSetNewGoal, handleViewToday, handleViewYesterday, handleViewGoals  } from './user.js';
 import { handleAdminPanel, handleViewUserStats, handleViewUsers, handleUploadVideo } from './admin.js';
-import { userKeyboard, anotherVideoKeyboard } from '../keyboards/keyboards.js';
+import { userKeyboard, anotherVideoKeyboard, journalKeyboard } from '../keyboards/keyboards.js';
 import { getAIResponse } from '../ai/openrouter.js';
 import { Markup } from 'telegraf';
 
@@ -42,7 +42,44 @@ export const registerEventHandlers = (bot) => {
             }
             return ctx.reply(`Broadcast finished. Sent to ${successCount}/${allUsers.length} users.`);
         }
+        if (state.stage === 'awaiting_goal_description') {
+            userStates[userId] = { stage: 'awaiting_goal_date', description: text };
+            await ctx.reply(`Goal set: "${text}".\n\nWhen do you want to achieve this by? (e.g., "tomorrow", "next week", "2024-12-31")`);
+            return;
+        }
+        if (state.stage === 'awaiting_goal_date') {
+            delete userStates[userId];
+            const { description } = state;
+            // NOTE: A robust date parser (like 'date-fns' or 'moment') would be better here
+            // For simplicity, we'll use a basic Date constructor.
+            const targetDate = new Date(text);
+            if (isNaN(targetDate.getTime())) {
+                return ctx.reply("That date doesn't look right. Please try setting your goal again with a clearer date.", journalKeyboard);
+            }
+            
+            const newGoal = new Goal({ userId, description, targetDate });
+            await newGoal.save();
+            
+            await ctx.reply(`✅ Goal saved! I will hold you accountable.\n\n*Goal:* ${description}\n*Target:* ${targetDate.toDateString()}`, {
+                parse_mode: 'Markdown',
+                ...userKeyboard
+            });
+            return;
+        }
+        if (state.stage === 'awaiting_journal_entry') {
+            await ctx.reply('Analyzing and saving your entry...');
+            delete userStates[userId];
 
+            const newEntry = new JournalEntry({ userId, content: text });
+            await newEntry.save();
+            updateFocusScore(user, 5);
+            await user.save();
+
+            const prompt = [{ role: 'user', content: `Analyze my journal entry with brutal honesty... Entry:\n\n"${text}"` }];
+            const response = await getAIResponse(prompt, user.mode);
+            await ctx.replyWithMarkdown(response, userKeyboard);
+            return;
+        }
         if (state.stage === 'awaiting_journal') {
             await ctx.reply('Analyzing your journal entry, please wait...');
             
@@ -152,7 +189,16 @@ export const registerEventHandlers = (bot) => {
             'admin_view_users': handleViewUsers,
             'admin_upload_video': handleUploadVideo,
         };
-
+        const journalActions = {
+            'journal_new_entry': handleNewJournalEntry,
+            'goal_new': handleSetNewGoal,
+            'journal_view_today': handleViewToday,
+            'journal_view_yesterday': handleViewYesterday,
+            'goal_view_active': handleViewGoals
+        };
+        if (journalActions[data]) {
+            return journalActions[data](ctx);
+}
         if (buttonActions[data]) {
             return buttonActions[data](ctx, user);
         }

@@ -17,11 +17,10 @@ export const ensureUser = async (ctx) => {
         user = new User({
             userId: userId,
             name: ctx.from.first_name || 'User',
-            username: ctx.from.username, // <-- FIX: Added username to be saved
+            username: ctx.from.username,
         });
         await user.save();
     }
-    // Update username if the user adds one later
     if (!user.username && ctx.from.username) {
         user.username = ctx.from.username;
         await user.save();
@@ -113,11 +112,66 @@ export async function handleViewProgress(ctx) {
 
 export async function handleJournal(ctx) {
     if (ctx.chat.type !== 'private') return ctx.reply('Use the journal in a private chat with me.');
-    await ensureUser(ctx);
-    userStates[ctx.from.id] = { stage: 'awaiting_journal' };
-    await ctx.reply('✍️ Journal entry. What were your wins and losses today? Be honest.');
+    await ctx.editMessageText('📓 Journal & Goals Menu', journalKeyboard);
 }
 
+export async function handleNewJournalEntry(ctx) {
+    userStates[ctx.from.id] = { stage: 'awaiting_journal_entry' };
+    await ctx.editMessageText('✍️ Write your journal entry. Be honest. What were your wins and losses today?');
+}
+
+export async function handleSetNewGoal(ctx) {
+    userStates[ctx.from.id] = { stage: 'awaiting_goal_description' };
+    await ctx.editMessageText('🎯 What is your goal? Be specific and measurable.');
+}
+
+async function viewJournalEntryByDate(ctx, date) {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const entry = await JournalEntry.findOne({
+        userId: ctx.from.id,
+        date: { $gte: startOfDay, $lte: endOfDay }
+    });
+
+    if (entry) {
+        await ctx.editMessageText(`*Entry from ${startOfDay.toDateString()}:*\n\n${entry.content}`, {
+            parse_mode: 'Markdown',
+            ...journalKeyboard
+        });
+    } else {
+        await ctx.answerCbQuery(`No entry found for ${startOfDay.toDateString()}.`);
+    }
+}
+
+export async function handleViewToday(ctx) {
+    await viewJournalEntryByDate(ctx, new Date());
+}
+
+export async function handleViewYesterday(ctx) {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    await viewJournalEntryByDate(ctx, yesterday);
+}
+
+export async function handleViewGoals(ctx) {
+    const goals = await Goal.find({ userId: ctx.from.id, status: 'active' }).sort({ targetDate: 1 });
+
+    if (goals.length === 0) {
+        return await ctx.editMessageText("You have no active goals. It's time to set one.", journalKeyboard);
+    }
+
+    let goalText = "*🎯 Your Active Goals:*\n\n";
+    goals.forEach(goal => {
+        goalText += `*Goal:* ${goal.description}\n`;
+        goalText += `*Target:* ${goal.targetDate.toDateString()}\n\n`;
+    });
+
+    await ctx.editMessageText(goalText, { parse_mode: 'Markdown', ...journalKeyboard });
+}
 export async function handleRelapse(ctx) {
     if (ctx.chat.type !== 'private') return ctx.reply('Report a relapse in a private chat with me.');
     const user = await ensureUser(ctx);
