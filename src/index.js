@@ -1,4 +1,5 @@
 // index.js
+console.log("ALL ENV VARS:", process.env);
 import 'dotenv/config';
 import mongoose from 'mongoose';
 import { bot } from './bot.js'; // Imports the bot engine from the src folder
