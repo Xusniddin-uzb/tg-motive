@@ -3,7 +3,7 @@ import { User, Video, JournalEntry, Goal } from '../models/index.js';
 import {
     userStates, ensureUser, updateFocusScore, handleSwear, handleMotivate, handleAddHabit, handleAddAddiction,
     handleViewProgress, handleJournal, handleRelapse, handleLeaderboard, handleScore, handleSupport, handleGetVideo,
-    handleNewJournalEntry, handleViewThisWeek, handleViewLastWeek, handleSetNewGoal, handleViewGoals, handleShowToolkit
+    handleNewJournalEntry, handleViewThisWeek, handleViewLastWeek, handleSetNewGoal, handleViewGoals, handleShowToolkit, promptNextHabit 
 } from './user.js';
 import { handleAdminPanel, handleViewUserStats, handleViewUsers, handleUploadVideo } from './admin.js';
 import { userKeyboard, anotherVideoKeyboard, journalKeyboard } from '../keyboards/keyboards.js';
