@@ -44,9 +44,13 @@ export const registerEventHandlers = (bot) => {
         }
 
         if (state.stage === 'awaiting_journal') {
+            // <-- FIX: Inform the user first, then do the slow AI call
+            await ctx.reply('Analyzing your journal entry, please wait...');
+            
             delete userStates[userId];
             updateFocusScore(user, 5);
             await user.save();
+
             const prompt = [{ role: 'user', content: `Analyze my journal entry with brutal honesty. Focus on mindset, money, and fitness. Entry:\n\n"${text}"` }];
             const response = await getAIResponse(prompt, user.mode);
             await ctx.replyWithMarkdown(response, userKeyboard);
@@ -106,7 +110,7 @@ export const registerEventHandlers = (bot) => {
         }
     });
 
-    bot.on('video', async (ctx) => {
+     bot.on('video', async (ctx) => {
         const userId = ctx.from.id;
         const state = userStates[userId];
 
@@ -118,16 +122,21 @@ export const registerEventHandlers = (bot) => {
             });
             await newVideo.save();
 
-            delete userStates[userId];
-            await ctx.reply(`✅ Video successfully saved to **${state.category}** category.\nFile ID: \`${videoFileId}\``, { parse_mode: 'Markdown' });
-            await ctx.reply('👑 Admin Panel', adminKeyboard);
+            // <-- FIX: Keep the user in the upload loop instead of resetting
+            await ctx.reply(
+                `✅ Video saved to **${state.category}**.\n\nSend another video to add it to this category, or choose an option below.`,
+                { reply_markup: anotherVideoKeyboard.reply_markup, parse_mode: 'Markdown' }
+            );
         }
     });
 
-    bot.on('callback_query', async (ctx) => {
-        const data = ctx.callbackQuery.data;
+      bot.on('callback_query', async (ctx) => {
+        // <-- FIX: Acknowledge the button press immediately
         await ctx.answerCbQuery().catch(err => console.error(err));
+
+        const data = ctx.callbackQuery.data;
         const userId = ctx.from.id;
+        const user = await ensureUser(ctx); // Ensure user exists for most operations
 
         const buttonActions = {
             'action_swear': handleSwear,
@@ -145,14 +154,29 @@ export const registerEventHandlers = (bot) => {
             'admin_view_stats': handleViewUserStats,
             'admin_view_users': handleViewUsers,
             'admin_upload_video': handleUploadVideo,
-            'admin_broadcast_prompt': (ctx) => {
-                userStates[ctx.from.id] = { stage: 'admin_awaiting_broadcast' };
-                ctx.reply('Enter the message to broadcast to all users. Send /cancel to abort.');
-            }
         };
 
         if (buttonActions[data]) {
-            return buttonActions[data](ctx);
+            return buttonActions[data](ctx, user); // Pass user to handlers
+        }
+
+        // --- RELAPSE FIX ---
+        if (data.startsWith('relapse_')) {
+            const addictionId = data.split('_')[1];
+            const addiction = user.addictions.find(a => a.addictionId === addictionId);
+
+            if (addiction) {
+                // <-- FIX: Inform the user first, then do the slow AI call
+                await ctx.editMessageText(`You failed on "${addiction.name}". Analyzing...`);
+                
+                addiction.streak = 0;
+                updateFocusScore(user, -10);
+                await user.save();
+
+                const prompt = [{ role: 'user', content: `I relapsed on "${addiction.name}". My reason for quitting was "${addiction.why}". Give me a harsh message to get me back on my feet immediately. Acknowledge the failure but demand I restart now.` }];
+                const response = await getAIResponse(prompt, user.mode);
+                return ctx.editMessageText(response);
+            }
         }
 
         if (data.startsWith('video_cat_')) {
