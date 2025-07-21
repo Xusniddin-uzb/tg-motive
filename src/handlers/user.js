@@ -8,7 +8,7 @@ import { startOfWeek, endOfWeek, subWeeks } from 'date-fns';
 export const userStates = {};
 const ADMIN_USER_ID = process.env.ADMIN_USER_ID;
 
-// --- DATABASE & SCORE HELPERS ---
+// ... (ensureUser, updateFocusScore, handleStart, and other handlers are unchanged)
 export const ensureUser = async (ctx) => {
     const userId = ctx.from.id;
     let user = await User.findOne({ userId: userId });
@@ -37,7 +37,6 @@ export function updateFocusScore(user, points) {
     user.lastInteraction = today;
 }
 
-// --- CORE ACTION HANDLERS ---
 
 export async function handleStart(ctx) {
     await ensureUser(ctx);
@@ -69,43 +68,7 @@ export async function handleMotivate(ctx) {
     const motivation = await getAIResponse(prompt, user.mode);
     await ctx.replyWithMarkdown(motivation);
 }
-export async function handleHelp(ctx) {
-    const helpText = `
-*Welcome to the Discipline AI Bot* ⚔️
 
-This bot is your personal AI accountability partner. Its purpose is to keep you focused and on track. Here’s how to use its core features:
-
-*Core Commands:*
-- \`/start\` - Restarts the bot and shows the main menu.
-- \`/toolkit\` - Displays the main keyboard with all features.
-- \`/help\` - Shows this help message.
-
-*Main Features:*
-*💪 Motivate*
-- Get a random, hard-hitting piece of advice to keep you sharp.
-
-*🎬 Get Videos*
-- Watch curated motivational videos in different categories.
-
-*🧠 Habits & 🚫 Addictions*
-- Use the buttons to define habits you want to build and addictions you want to quit. The bot will track your streaks for both.
-
-*📉 Relapse*
-- If you fail, you *must* report it here. Honesty is mandatory. Your streak for that addiction will be reset.
-
-*📊 Progress & 🎯 My Score*
-- View a full report of your streaks and your daily "Focus Score," which is earned by interacting with the bot.
-
-*✍️ Journal & Goals*
-- This is your command center for self-reflection.
-- *New Entry:* Write down your thoughts, wins, and losses. The AI will analyze it for you.
-- *Set New Goal:* Define a clear goal and a target date (e.g., "next week", "2025-08-15"). The bot will remind you of your mission.
-- *View Entries:* Review your journal entries from this week or last week.
-
-Use these tools every day. No excuses.
-    `;
-    await ctx.replyWithMarkdown(helpText);
-}
 export async function handleAddHabit(ctx) {
     if (ctx.chat.type !== 'private') return ctx.reply('Set habits in a private chat with me.');
     userStates[ctx.from.id] = { stage: 'awaiting_habit_name' };
@@ -254,6 +217,43 @@ export async function handleLeaderboard(ctx) {
     }
     await ctx.replyWithMarkdown(board);
 }
+export async function handleHelp(ctx) {
+    const helpText = `
+*Welcome to the Discipline AI Bot* ⚔️
+
+This bot is your personal AI accountability partner. Its purpose is to keep you focused and on track. Here’s how to use its core features:
+
+*Core Commands:*
+- \`/start\` - Restarts the bot and shows the main menu.
+- \`/toolkit\` - Displays the main keyboard with all features.
+- \`/help\` - Shows this help message.
+
+*Main Features:*
+*💪 Motivate*
+- Get a random, hard-hitting piece of advice to keep you sharp.
+
+*🎬 Get Videos*
+- Watch curated motivational videos in different categories.
+
+*🧠 Habits & 🚫 Addictions*
+- Use the buttons to define habits you want to build and addictions you want to quit. The bot will track your streaks for both.
+
+*📉 Relapse*
+- If you fail, you *must* report it here. Honesty is mandatory. Your streak for that addiction will be reset.
+
+*📊 Progress & 🎯 My Score*
+- View a full report of your streaks and your daily "Focus Score," which is earned by interacting with the bot.
+
+*✍️ Journal & Goals*
+- This is your command center for self-reflection.
+- *New Entry:* Write down your thoughts, wins, and losses. The AI will analyze it for you.
+- *Set New Goal:* Define a clear goal and a target date (e.g., "next week", "2025-08-15"). The bot will remind you of your mission.
+- *View Entries:* Review your journal entries from this week or last week.
+
+Use these tools every day. No excuses.
+    `;
+    await ctx.replyWithMarkdown(helpText);
+}
 
 export async function handleScore(ctx) {
     const user = await ensureUser(ctx);
@@ -281,6 +281,32 @@ export async function handleShowToolkit(ctx) {
     await ctx.editMessageText('Your toolkit is below.', userKeyboard);
 }
 
+// --- CHECK-IN LOGIC (REFACTORED) ---
+
+// Helper function to ask the next question in the queue
+async function promptNextHabit(ctx, user) {
+    const state = userStates[user.userId];
+    if (!state || !state.habitQueue || state.currentIndex >= state.habitQueue.length) {
+        delete userStates[user.userId];
+        return ctx.reply('✅ Check-in complete. Well done.', userKeyboard);
+    }
+
+    const habitId = state.habitQueue[state.currentIndex];
+    const habit = user.habits.find(h => h.habitId === habitId);
+
+    if (habit.type === 'quantitative') {
+        userStates[user.userId].stage = 'awaiting_checkin_quantitative';
+        await ctx.reply(`For your habit "${habit.name}", how many ${habit.unit} did you complete today? (Enter a number)`);
+    } else {
+        userStates[user.userId].stage = 'awaiting_checkin_binary';
+        await ctx.reply(`Did you complete your habit "${habit.name}" today?`, Markup.inlineKeyboard([
+            Markup.button.callback('✅ Yes', `checkin_yes_${habit.habitId}`),
+            Markup.button.callback('❌ No', `checkin_no_${habit.habitId}`),
+        ]));
+    }
+}
+
+
 export async function handleCheckin(ctx) {
     if (ctx.chat.type !== 'private') return;
     const user = await ensureUser(ctx);
@@ -289,19 +315,14 @@ export async function handleCheckin(ctx) {
         return ctx.reply("You have no habits to check in on. Stop wasting time.");
     }
     
+    // Set up the queue
+    userStates[user.userId] = {
+        habitQueue: user.habits.map(h => h.habitId),
+        currentIndex: 0
+    };
+    
     await ctx.reply("Time to report. Answer honestly.");
-
-    for (const habit of user.habits) {
-        userStates[ctx.from.id] = { stage: 'awaiting_checkin', habitId: habit.habitId };
-        if (habit.type === 'quantitative') {
-            await ctx.reply(`For your habit "${habit.name}", how many ${habit.unit} did you complete today? (Enter a number)`);
-        } else {
-            await ctx.reply(`Did you complete your habit "${habit.name}" today?`, Markup.inlineKeyboard([
-                Markup.button.callback('✅ Yes', `checkin_yes_${habit.habitId}`),
-                Markup.button.callback('❌ No', `checkin_no_${habit.habitId}`),
-            ]));
-        }
-    }
+    await promptNextHabit(ctx, user); // Ask the first question
 }
 
 export async function handleWhy(ctx) {

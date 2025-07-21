@@ -14,7 +14,6 @@ import { addWeeks, addMonths, addDays, parse } from 'date-fns';
 const ADMIN_USER_ID = process.env.ADMIN_USER_ID;
 
 export const registerEventHandlers = (bot) => {
-    // --- TEXT EVENT HANDLER ---
     bot.on('text', async (ctx) => {
         const userId = ctx.from.id;
         const state = userStates[userId];
@@ -27,6 +26,34 @@ export const registerEventHandlers = (bot) => {
             delete userStates[userId];
             return ctx.reply('Operation cancelled.');
         }
+
+        // --- CHECK-IN ANSWER HANDLER ---
+        if (state.stage === 'awaiting_checkin_quantitative') {
+            const number = parseInt(text, 10);
+            if (isNaN(number)) {
+                return ctx.reply("That's not a valid number. Try again.");
+            }
+
+            const habitId = state.habitQueue[state.currentIndex];
+            const habit = user.habits.find(h => h.habitId === habitId);
+
+            if (habit) {
+                habit.progress = number;
+                if (number > 0) {
+                    habit.streak++;
+                    updateFocusScore(user, 10);
+                } else {
+                    habit.streak = 0;
+                    updateFocusScore(user, -5);
+                }
+                await user.save();
+            }
+
+            state.currentIndex++;
+            await promptNextHabit(ctx, user); 
+            return;
+        }
+
 
         // Handle states for journal and goals
         if (state.stage === 'awaiting_journal_entry') {
@@ -175,8 +202,7 @@ export const registerEventHandlers = (bot) => {
         const data = ctx.callbackQuery.data;
         const userId = ctx.from.id;
         const user = await ensureUser(ctx);
-
-        // Static button actions are mapped here
+        const state = userStates[userId];
         const buttonActions = {
             'action_swear': handleSwear,
             'action_motivate': handleMotivate,
@@ -257,23 +283,29 @@ export const registerEventHandlers = (bot) => {
         }
 
         if (data.startsWith('checkin_yes_') || data.startsWith('checkin_no_')) {
+            if (!state || state.stage !== 'awaiting_checkin_binary') return;
+
             const isYes = data.startsWith('checkin_yes_');
-            const habitId = isYes ? data.substring('checkin_yes_'.length) : data.substring('checkin_no_'.length);
+            const habitId = state.habitQueue[state.currentIndex];
             const habit = user.habits.find(h => h.habitId === habitId);
+
             if (habit) {
                 if (isYes) {
                     habit.streak++;
                     habit.progress = 1;
                     updateFocusScore(user, 10);
-                    await ctx.editMessageText(`"${habit.name}" - Done. Good. Consistency is key. ⚔️`);
+                    await ctx.editMessageText(`"${habit.name}" - Done. Good. ⚔️`);
                 } else {
                     habit.streak = 0;
                     habit.progress = 0;
                     updateFocusScore(user, -5);
-                    await ctx.editMessageText(`"${habit.name}" - Missed. Weakness. Do better tomorrow.`);
+                    await ctx.editMessageText(`"${habit.name}" - Missed. Weakness.`);
                 }
                 await user.save();
             }
+            state.currentIndex++;
+            await promptNextHabit(ctx, user); // Ask next question
+            return;
         }
     });
 };
