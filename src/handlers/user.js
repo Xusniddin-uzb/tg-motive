@@ -284,7 +284,7 @@ export async function handleShowToolkit(ctx) {
 // --- CHECK-IN LOGIC (REFACTORED) ---
 
 // Helper function to ask the next question in the queue
-async function promptNextHabit(ctx, user) {
+export async function promptNextHabit(ctx, user) {
     const state = userStates[user.userId];
     if (!state || !state.habitQueue || state.currentIndex >= state.habitQueue.length) {
         delete userStates[user.userId];
