@@ -1,9 +1,7 @@
-// index.js
-console.log("ALL ENV VARS:", process.env);
 import 'dotenv/config';
 import mongoose from 'mongoose';
-import { bot } from './bot.js'; // Imports the bot engine from the src folder
-import { startSchedules } from './reminders/schedule.js';
+import { bot } from './bot.js';
+import { scheduleJobs } from './reminders/schedule.js'; // <-- FIX: Import scheduleJobs
 
 async function main() {
     if (!process.env.MONGO_URI) {
@@ -18,12 +16,13 @@ async function main() {
         { command: 'motivate', description: 'Get a dose of harsh motivation' },
         { command: 'progress', description: 'View your streaks and stats' },
         { command: 'checkin', description: 'Check in your daily habits' },
-        { command: 'journal', description: 'Write a new journal entry' },
+        { command: 'journal', description: 'Open the journal menu' },
         { command: 'score', description: 'Check your daily Focus Score' },
         { command: 'videos', description: 'Get motivational videos' },
     ]);
     
-    startSchedules();
+    // <-- FIX: Pass the 'bot' object to the scheduling function
+    scheduleJobs(bot);
 
     // This line starts the bot that is defined in src/bot.js
     bot.launch(); 
