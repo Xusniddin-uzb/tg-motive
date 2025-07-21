@@ -3,7 +3,7 @@ import { User, Video, JournalEntry, Goal } from '../models/index.js';
 import {
     userStates, ensureUser, updateFocusScore, handleSwear, handleMotivate, handleAddHabit, handleAddAddiction,
     handleViewProgress, handleJournal, handleRelapse, handleLeaderboard, handleScore, handleSupport, handleGetVideo,
-    handleNewJournalEntry, handleViewThisWeek, handleViewLastWeek, handleSetNewGoal, handleViewGoals, handleShowToolkit, promptNextHabit 
+    handleNewJournalEntry, handleViewThisWeek, handleViewLastWeek, handleSetNewGoal, handleViewGoals, handleShowToolkit, promptNextHabit
 } from './user.js';
 import { handleAdminPanel, handleViewUserStats, handleViewUsers, handleUploadVideo } from './admin.js';
 import { userKeyboard, anotherVideoKeyboard, journalKeyboard } from '../keyboards/keyboards.js';
@@ -27,7 +27,7 @@ export const registerEventHandlers = (bot) => {
             return ctx.reply('Operation cancelled.');
         }
 
-        // --- CHECK-IN ANSWER HANDLER ---
+        // --- CHECK-IN ANSWER HANDLER (CORRECTED STREAK LOGIC) ---
         if (state.stage === 'awaiting_checkin_quantitative') {
             const number = parseInt(text, 10);
             if (isNaN(number)) {
@@ -38,19 +38,40 @@ export const registerEventHandlers = (bot) => {
             const habit = user.habits.find(h => h.habitId === habitId);
 
             if (habit) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                const lastUpdateDate = habit.lastStreakUpdate ? new Date(habit.lastStreakUpdate) : null;
+                if (lastUpdateDate) {
+                    lastUpdateDate.setHours(0, 0, 0, 0);
+                }
+
                 habit.progress = number;
+
                 if (number > 0) {
-                    habit.streak++;
+                    // Only update streak if not already updated today
+                    if (!lastUpdateDate || lastUpdateDate.getTime() !== today.getTime()) {
+                        const yesterday = new Date(today);
+                        yesterday.setDate(yesterday.getDate() - 1);
+
+                        if (lastUpdateDate && lastUpdateDate.getTime() === yesterday.getTime()) {
+                            habit.streak = (habit.streak || 0) + 1; // Continue streak
+                        } else {
+                            habit.streak = 1; // New or broken streak
+                        }
+                        habit.lastStreakUpdate = today;
+                    }
                     updateFocusScore(user, 10);
-                } else {
+                } else { // number is 0
                     habit.streak = 0;
+                    habit.lastStreakUpdate = today; // Also record the date of failure
                     updateFocusScore(user, -5);
                 }
                 await user.save();
             }
 
             state.currentIndex++;
-            await promptNextHabit(ctx, user); 
+            await promptNextHabit(ctx, user);
             return;
         }
 
@@ -93,7 +114,7 @@ export const registerEventHandlers = (bot) => {
                 } else {
                      targetDate = parse(text, 'yyyy-MM-dd', new Date());
                      if (isNaN(targetDate.getTime())) targetDate = new Date(text);
-                }   
+                }
                 if (isNaN(targetDate.getTime())) throw new Error('Invalid date format');
             } catch (e) {
                 return ctx.reply("That date doesn't look right. Please try setting your goal again using a format like YYYY-MM-DD or a term like '3 weeks'.", journalKeyboard);
@@ -120,7 +141,7 @@ export const registerEventHandlers = (bot) => {
         }
         if (state.stage === 'awaiting_journal') {
             await ctx.reply('Analyzing your journal entry, please wait...');
-            
+
             delete userStates[userId];
             updateFocusScore(user, 5);
             await user.save();
@@ -138,7 +159,8 @@ export const registerEventHandlers = (bot) => {
                 [Markup.button.callback('By a Number (e.g., pages, km, reps)', 'habit_type_quantitative')],
             ]));
         } else if (state.stage === 'awaiting_habit_unit') {
-            user.habits.push({ habitId: nanoid(8), name: state.name, type: 'quantitative', unit: text });
+            // CORRECTED: Initialize streak and lastStreakUpdate
+            user.habits.push({ habitId: nanoid(8), name: state.name, type: 'quantitative', unit: text, streak: 0, lastStreakUpdate: null });
             updateFocusScore(user, 2);
             await user.save();
             delete userStates[userId];
@@ -146,7 +168,7 @@ export const registerEventHandlers = (bot) => {
             const response = await getAIResponse(prompt, user.mode);
             await ctx.replyWithMarkdown(response, userKeyboard);
         }
-        
+
         else if (state.stage === 'awaiting_addiction') {
             userStates[userId] = { stage: 'awaiting_why', name: text };
             await ctx.reply(`And WHY do you want to quit "${text}"? This is your anchor. Dig deep.`);
@@ -159,7 +181,7 @@ export const registerEventHandlers = (bot) => {
             const response = await getAIResponse(prompt, user.mode);
             await ctx.replyWithMarkdown(response, userKeyboard);
         }
-        
+
         else if (state.stage === 'awaiting_checkin' && state.habitId) {
             const number = parseInt(text, 10);
             if (isNaN(number)) {
@@ -231,9 +253,10 @@ export const registerEventHandlers = (bot) => {
             return buttonActions[data](ctx, user);
         }
 
-        if (journalActions[data]) {
-            return journalActions[data](ctx);
-        }
+        // REMOVED: Redundant and faulty journalActions block
+        // if (journalActions[data]) {
+        //     return journalActions[data](ctx);
+        // }
 
           if (data.startsWith('relapse_')) {
             const addictionId = data.split('_')[1];
@@ -269,7 +292,8 @@ export const registerEventHandlers = (bot) => {
             const state = userStates[userId];
             if (state && state.stage === 'awaiting_habit_type') {
                 if (type === 'binary') {
-                    user.habits.push({ habitId: nanoid(8), name: state.name, type: 'binary' });
+                    // CORRECTED: Initialize streak and lastStreakUpdate
+                    user.habits.push({ habitId: nanoid(8), name: state.name, type: 'binary', streak: 0, lastStreakUpdate: null });
                     updateFocusScore(user, 2);
                     await user.save();
                     delete userStates[userId];
@@ -282,6 +306,7 @@ export const registerEventHandlers = (bot) => {
             }
         }
 
+        // CORRECTED: Binary check-in with proper streak logic
         if (data.startsWith('checkin_yes_') || data.startsWith('checkin_no_')) {
             if (!state || state.stage !== 'awaiting_checkin_binary') return;
 
@@ -290,14 +315,34 @@ export const registerEventHandlers = (bot) => {
             const habit = user.habits.find(h => h.habitId === habitId);
 
             if (habit) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                const lastUpdateDate = habit.lastStreakUpdate ? new Date(habit.lastStreakUpdate) : null;
+                if (lastUpdateDate) {
+                    lastUpdateDate.setHours(0, 0, 0, 0);
+                }
+
                 if (isYes) {
-                    habit.streak++;
                     habit.progress = 1;
+                    // Only update streak if not already updated today
+                    if (!lastUpdateDate || lastUpdateDate.getTime() !== today.getTime()) {
+                        const yesterday = new Date(today);
+                        yesterday.setDate(yesterday.getDate() - 1);
+
+                        if (lastUpdateDate && lastUpdateDate.getTime() === yesterday.getTime()) {
+                            habit.streak = (habit.streak || 0) + 1; // Continue streak
+                        } else {
+                            habit.streak = 1; // New or broken streak
+                        }
+                        habit.lastStreakUpdate = today;
+                    }
                     updateFocusScore(user, 10);
                     await ctx.editMessageText(`"${habit.name}" - Done. Good. ⚔️`);
                 } else {
                     habit.streak = 0;
                     habit.progress = 0;
+                    habit.lastStreakUpdate = today; // Also record the date of failure
                     updateFocusScore(user, -5);
                     await ctx.editMessageText(`"${habit.name}" - Missed. Weakness.`);
                 }
